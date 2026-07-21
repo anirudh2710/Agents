@@ -21,6 +21,26 @@ Includes a mock data layer simulating production telemetry (Datadog metrics), ap
 
 ---
 
+## ⚖️ LLM-as-a-Judge Evaluation Suite
+
+The notebook includes an automated **LLM-as-a-Judge** evaluation framework to evaluate the agent across 5 core dimensions:
+
+1. **Domain Boundary / Out-of-Scope Safety**: Refuses non-SRE requests without invoking tools.
+2. **Multi-Service Cascading Failure**: Traces slowness to upstream dependencies.
+3. **Missing Runbook Handling**: Gracefully reports when no runbook exists without hallucinating.
+4. **Recent Deployment Audit**: Inspects release tags and environment variable drift.
+5. **Ambiguous Query Health Sweep**: Queries metrics across all services in parallel.
+
+### Evaluation Criteria (Pydantic Schema)
+The Judge LLM (`llama-3.3-70b-versatile`) grades each trajectory on:
+- **Tool Selection & Ordering Score** (1-5)
+- **Root Cause & Diagnosis Accuracy Score** (1-5)
+- **Hallucination Detection** (True/False)
+- **Domain Boundary Compliance** (True/False)
+- **Overall Pass/Fail**
+
+---
+
 ## Setup
 
 1. Install dependencies: `uv sync`
@@ -30,5 +50,4 @@ GROQ_API_KEY=your_groq_api_key_here
 ```
 3. Open `app.ipynb` and run all cells top to bottom using the `.venv` kernel.
 
----
-
+For a reference of test scenarios and expected behaviors, see [test_prompts.md](test_prompts.md).
