@@ -84,7 +84,7 @@ Built with **LangChain**, **LangGraph**, **ChromaDB**, **rank_bm25**, and **Open
 1. Install dependencies: `uv sync`
 2. Add `.env` in the project root:
 ```env
-OPENAI_API_KEY=your_openai_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
 ```
 3. Open `app.ipynb` in `projects/03_RAG_HYBRID_SEARCH/` and run all cells top-to-bottom using the `.venv` kernel.
 
