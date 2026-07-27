@@ -1,34 +1,39 @@
-# 🌤️ Weather Agent
+# 🌤️ Weather Agent (Model Context Protocol / MCP)
 
-A conversational AI agent that fetches real-time weather data for any city using the [Open-Meteo API](https://open-meteo.com/) — no API key required for weather data.
+A conversational AI agent that fetches real-time weather data for any city using an **MCP (Model Context Protocol) Weather Server** connected to the [Open-Meteo API](https://open-meteo.com/).
 
-Built with **LangChain**, **LangGraph**, and **Groq (Llama 3.3 70B)**.
+Built with **LangChain**, **LangGraph**, **FastMCP**, **`langchain-mcp-adapters`**, and **Groq (Llama 3.3 70B)**.
 
 ---
 
 ## How It Works
 
 ```
-User: "What's the weather in Berlin?"
-  └─► Agent calls get_weather tool
-        └─► Geocoding API: "Berlin" → (52.52°N, 13.42°E)
-        └─► Open-Meteo API: coordinates → temperature, wind, humidity
-  └─► Agent summarises and responds in natural language
+                        stdio / JSON-RPC
+┌──────────────────────────┐  Tool Discovery   ┌──────────────────────────┐
+│     LangChain Agent      │ ◄───────────────► │    Weather MCP Server    │
+│ (MCP Client via Adapters)│   & Execution     │ (weather_server.py)      │
+└────────────┬─────────────┘                   └────────────┬─────────────┘
+             │                                              │
+             ▼                                              ▼
+     User Question                                   Open-Meteo API
 ```
 
-The agent runs as a **LangGraph tool-calling loop** — it calls tools until it has enough information to answer, then returns a final response.
+1. **`weather_server.py`**: A standalone MCP Server built with `FastMCP` exposing `get_weather(city)`.
+2. **`app.ipynb`**: The LangChain agent connects asynchronously via `MultiServerMCPClient` over `stdio`, retrieves tool definitions, and executes queries asynchronously via `await agent.ainvoke(...)`.
 
 ---
 
 ## Stack
 
-| Component | Library |
-|-----------|---------|
+| Component | Library / API |
+|-----------|---------------|
 | LLM | `langchain-groq` · `llama-3.3-70b-versatile` |
-| Agent framework | `langchain` · `create_agent` |
-| Graph runtime | `langgraph` |
-| Weather data | [Open-Meteo Forecast API](https://open-meteo.com/) (free, no key) |
-| Geocoding | [Open-Meteo Geocoding API](https://geocoding-api.open-meteo.com/) (free, no key) |
+| Agent Framework | `langchain` · `create_agent` |
+| MCP Server | `mcp.server.fastmcp` · `FastMCP` |
+| MCP Client | `langchain-mcp-adapters` · `MultiServerMCPClient` |
+| Graph Runtime | `langgraph` · `MemorySaver` |
+| Weather Data | [Open-Meteo Forecast API](https://open-meteo.com/) (free, no key) |
 
 ---
 
@@ -36,19 +41,18 @@ The agent runs as a **LangGraph tool-calling loop** — it calls tools until it 
 
 ```
 01_WEATHER_AGENT/
-├── app.ipynb   # Main notebook — agent definition and invocation
-└── README.md
+├── weather_server.py   # Standalone MCP Weather Server (FastMCP)
+├── app.ipynb           # Main notebook — MCP Client & Agent invocation
+└── README.md           # Documentation
 ```
 
 ---
 
-## Setup
+## 💻 Setup & Running
 
-### 1. Clone the repo and install dependencies
+### 1. Install dependencies
 
 ```bash
-git clone https://github.com/anirudh2710/Agents.git
-cd Agents
 uv sync          # or: pip install -r requirements.txt
 ```
 
@@ -60,20 +64,11 @@ GROQ_API_KEY=your_groq_api_key_here
 
 ### 3. Run the notebook
 
-Open `projects/01_WEATHER_AGENT/app.ipynb` in Jupyter and run all cells top to bottom.
-
-> **Kernel**: Make sure the notebook kernel is set to `.venv` (the project virtual environment).
+Open `projects/01_WEATHER_AGENT/app.ipynb` in Jupyter and run all cells top to bottom using the `.venv` kernel.
 
 ---
 
-You can ask about any city in the world:
-- `"What's the weather in Tokyo?"`
-- `"How hot is it in Dubai right now?"`
-- `"Current weather in New York?"`
+## 💡 Key Technical Details
 
----
-
-## Notes
-
-- A **fresh `thread_id`** is generated per run via `uuid.uuid4()` to prevent `MemorySaver` from accumulating tool responses across runs (which would exceed the Groq free-tier token limit).
-- The weather API call uses `forecast_days=1` to return only today's 24-hour forecast instead of the default 7-day dump, keeping the tool response small.
+- **Async Invocation (`agent.ainvoke`)**: Since MCP clients communicate asynchronously over `stdio`/JSON-RPC, calling `await agent.ainvoke(inputs, config=config)` is required so LangGraph executes `ToolNode._execute_tool_async()` instead of throwing `StructuredTool does not support sync invocation`.
+- **Interpreter Path (`sys.executable`)**: The client passes `sys.executable` as the server command to ensure the child MCP process uses the active virtual environment.

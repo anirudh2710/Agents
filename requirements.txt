@@ -9,3 +9,5 @@ langchain-google-genai
 langchain-community
 langchain-core
 pandas
+mcp
+langchain-mcp-adapters
