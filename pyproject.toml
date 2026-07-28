@@ -17,6 +17,7 @@ dependencies = [
     "langgraph>=1.2.9",
     "langsmith>=0.10.4",
     "mcp>=1.28.1",
+    "nbstripout>=0.9.1",
     "pandas>=3.0.3",
     "python-dotenv>=1.2.2",
     "rank-bm25>=0.2.2",
