@@ -11,4 +11,3 @@ langchain-core
 pandas
 mcp
 langchain-mcp-adapters
-nbstripout
