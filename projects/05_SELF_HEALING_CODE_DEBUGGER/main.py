@@ -1,5 +1,6 @@
 import sys
 import os
+import uuid
 
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.dirname(__file__))
@@ -29,7 +30,9 @@ def get_multiline_input() -> str:
 def main():
     print("🛠️ Initializing Self-Healing Code & Debugger Agent (The ReAct Sandbox Loop)...")
     agent = init_debugger_agent()
-    print("✅ Debugger Agent ready! Interactive CLI mode active.")
+    session_id = str(uuid.uuid4())[:8]
+    config = {"configurable": {"thread_id": f"cli-session-{session_id}"}}
+    print(f"✅ Debugger Agent ready! [Session Thread ID: cli-session-{session_id}]")
     print("--------------------------------------------------")
     print("Describe the coding task or paste buggy code to generate and self-heal.")
     print("Type 'exit' or 'q' to quit.\n")
@@ -45,7 +48,7 @@ def main():
                 
             print("\n🚀 Executing Self-Healing Agent Pipeline...\n" + "="*60)
             initial_state = {"task_description": user_input, "revision_count": 0}
-            final_state = agent.invoke(initial_state)
+            final_state = agent.invoke(initial_state, config=config)
             
             print("\n" + "="*60)
             print(f"🎉 PIPELINE COMPLETE! Status: '{final_state.get('status')}'")

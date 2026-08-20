@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from langchain_groq import ChatGroq
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
 
 from src.guardrails.code_validator import validate_python_code
 from src.tools.sandbox_executor import execute_code_in_sandbox
@@ -214,8 +215,10 @@ builder.add_conditional_edges("debugger", should_heal, {
     END: END
 })
 
-graph = builder.compile()
+def init_debugger_agent(checkpointer=None):
+    """Returns compiled Self-Healing StateGraph with Checkpointer support."""
+    if checkpointer is None:
+        checkpointer = MemorySaver()
+    return builder.compile(checkpointer=checkpointer)
 
-def init_debugger_agent():
-    """Returns compiled Self-Healing StateGraph."""
-    return graph
+graph = init_debugger_agent()

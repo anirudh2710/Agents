@@ -36,7 +36,8 @@ async def run_benchmark():
         print(f"Task Prompt: {task['prompt']}")
         
         initial_state = {"task_description": task["prompt"], "revision_count": 0}
-        res = agent.invoke(initial_state)
+        config = {"configurable": {"thread_id": f"bench-task-{idx}"}}
+        res = agent.invoke(initial_state, config=config)
         
         status = res.get("status")
         exec_status = res.get("execution_status")
