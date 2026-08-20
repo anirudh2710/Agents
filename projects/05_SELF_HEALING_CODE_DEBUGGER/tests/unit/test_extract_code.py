@@ -1,30 +1,22 @@
 import unittest
-from src.agents.debugger_agent import extract_python_code
+from src.agents.debugger_agent import CodeGenerationOutput, DebuggerAnalysisOutput
 
-class TestExtractPythonCode(unittest.TestCase):
-    def test_extract_python_code_plain_str(self):
-        raw = "```python\ndef foo():\n    return 42\n```"
-        code = extract_python_code(raw)
-        self.assertEqual(code, "def foo():\n    return 42")
+class TestStructuredOutputs(unittest.TestCase):
+    def test_code_generation_output_schema(self):
+        output = CodeGenerationOutput(
+            explanation="Created a helper function",
+            code="def add(a, b):\n    return a + b"
+        )
+        self.assertEqual(output.explanation, "Created a helper function")
+        self.assertEqual(output.code, "def add(a, b):\n    return a + b")
 
-    def test_extract_python_code_generic_block(self):
-        raw = "```\ndef bar():\n    return 100\n```"
-        code = extract_python_code(raw)
-        self.assertEqual(code, "def bar():\n    return 100")
-
-    def test_extract_python_code_no_markdown(self):
-        raw = "def baz():\n    return 0"
-        code = extract_python_code(raw)
-        self.assertEqual(code, "def baz():\n    return 0")
-
-    def test_extract_python_code_list_content(self):
-        list_input = [
-            "Here is the python solution:\n",
-            {"type": "text", "text": "```python\ndef test():\n    assert True\n```"}
-        ]
-        code = extract_python_code(list_input)
-        self.assertEqual(code, "def test():\n    assert True")
+    def test_debugger_analysis_output_schema(self):
+        output = DebuggerAnalysisOutput(
+            root_cause="Zero division error on line 4",
+            feedback="Add check for b != 0"
+        )
+        self.assertEqual(output.root_cause, "Zero division error on line 4")
+        self.assertEqual(output.feedback, "Add check for b != 0")
 
 if __name__ == "__main__":
     unittest.main()
-

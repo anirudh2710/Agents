@@ -1,9 +1,9 @@
-import re
 from typing import Dict, Any, List
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from langchain_groq import ChatGroq
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.graph import StateGraph, START, END
 
 from src.guardrails.code_validator import validate_python_code
@@ -12,9 +12,35 @@ from src.prompts.system_prompts import CODER_SYSTEM_PROMPT, DEBUGGER_SYSTEM_PROM
 
 load_dotenv()
 
-# Primary LLMs
-coder_llm = ChatGroq(model="qwen/qwen3.6-27b", temperature=0.1)
-debugger_llm = ChatGroq(model="qwen/qwen3.6-27b", temperature=0.0)
+# Primary and Fallback LLM Chains
+primary_coder = ChatGroq(model="qwen/qwen3.6-27b", temperature=0.1)
+fallback_coder_groq = ChatGroq(model="groq/compound", temperature=0.1)
+fallback_coder_gemini = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0.1)
+
+coder_llm = primary_coder.with_fallbacks([fallback_coder_groq, fallback_coder_gemini])
+
+primary_debugger = ChatGroq(model="qwen/qwen3.6-27b", temperature=0.0)
+fallback_debugger_groq = ChatGroq(model="groq/compound", temperature=0.0)
+fallback_debugger_gemini = ChatGoogleGenerativeAI(model="gemini-3.6-flash", temperature=0.0)
+
+debugger_llm = primary_debugger.with_fallbacks([fallback_debugger_groq, fallback_debugger_gemini])
+
+
+# Structured Response Schemas
+class CodeGenerationOutput(BaseModel):
+    """Structured response schema for Coder Agent."""
+    explanation: str = Field(default="", description="Brief high-level explanation of the code or bug fix.")
+    code: str = Field(description="The complete, self-contained Python code including function definitions and executable assertion test cases.")
+
+class DebuggerAnalysisOutput(BaseModel):
+    """Structured response schema for Debugger Agent."""
+    root_cause: str = Field(default="", description="Detailed root-cause analysis of the traceback or syntax error.")
+    feedback: str = Field(description="Clear, step-by-step instructions and guidance for patching the code.")
+
+
+coder_structured_llm = coder_llm.with_structured_output(CodeGenerationOutput)
+debugger_structured_llm = debugger_llm.with_structured_output(DebuggerAnalysisOutput)
+
 
 class CodeDebugState(BaseModel):
     task_description: str         # Problem specification
@@ -25,29 +51,6 @@ class CodeDebugState(BaseModel):
     feedback: str = ""            # Debugger analysis & repair feedback
     revision_count: int = 0       # Active revision count (max 3)
     status: str = ""              # "SUCCESS", "MAX_REVISIONS_EXCEEDED", "SECURITY_BLOCKED"
-
-def extract_python_code(text: str | List[Any]) -> str:
-    """Helper function to extract code inside ```python ``` blocks."""
-    if isinstance(text, list):
-        parts = []
-        for part in text:
-            if isinstance(part, str):
-                parts.append(part)
-            elif isinstance(part, dict) and "text" in part:
-                parts.append(str(part["text"]))
-            else:
-                parts.append(str(part))
-        raw_text = "".join(parts)
-    else:
-        raw_text = text
-
-    match = re.search(r"```python\s*(.*?)\s*```", raw_text, re.DOTALL)
-    if match:
-        return match.group(1).strip()
-    match_generic = re.search(r"```\s*(.*?)\s*```", raw_text, re.DOTALL)
-    if match_generic:
-        return match_generic.group(1).strip()
-    return raw_text.strip()
 
 # 1. Coder Node (Generator / Reflector)
 def coder_node(state: CodeDebugState) -> Dict[str, Any]:
@@ -70,19 +73,19 @@ DEBUGGER FEEDBACK & TRACEBACK ANALYSIS:
 {feedback}
 
 INSTRUCTIONS:
-Rewrite the Python code to fix the identified bugs and errors. Return ONLY the complete corrected Python code in a ```python ``` block with test assertions."""
+Rewrite the Python code to fix the identified bugs and errors. Provide the complete corrected Python code with test assertions."""
     else:
         print(f"👨‍💻 [CODER AGENT - INITIAL GENERATION MODE] Writing solution for task: '{task}'...")
         prompt = f"""Task Specification: {task}
 
 Write a complete, self-contained Python function that implements the requested solution along with executable assertion test cases at the bottom."""
 
-    response = coder_llm.invoke([
+    response = coder_structured_llm.invoke([
         {"role": "system", "content": CODER_SYSTEM_PROMPT},
         {"role": "user", "content": prompt}
     ])
 
-    extracted_code = extract_python_code(response.content)
+    extracted_code = response.code.strip() if response and response.code else ""
     print("✅ [CODER AGENT] Code draft generated successfully!")
 
     return {
@@ -156,12 +159,12 @@ CAPTURED EXECUTION TRACEBACK / ERROR:
 
 Identify the root cause of the error and provide clear, step-by-step instructions on how to patch the code."""
 
-    response = debugger_llm.invoke([
+    response = debugger_structured_llm.invoke([
         {"role": "system", "content": DEBUGGER_SYSTEM_PROMPT},
         {"role": "user", "content": prompt}
     ])
 
-    feedback = response.content if isinstance(response.content, str) else str(response.content)
+    feedback = getattr(response, "feedback", "") if response else ""
 
     if revisions >= 3:
         status = "MAX_REVISIONS_EXCEEDED"

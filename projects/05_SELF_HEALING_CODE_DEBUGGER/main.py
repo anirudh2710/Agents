@@ -6,17 +6,37 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from src.agents.debugger_agent import init_debugger_agent
 
+def get_multiline_input() -> str:
+    print("User Task > (Paste prompt/code below; press Enter on an empty line or type 'END' to execute)")
+    lines = []
+    while True:
+        try:
+            line = input("  | " if lines else "User Task > ")
+        except (KeyboardInterrupt, EOFError):
+            return "exit"
+
+        if line.strip() == "END":
+            break
+        if not line.strip() and lines:
+            break
+        if line.strip().lower() in ["exit", "q", "quit"] and not lines:
+            return "exit"
+
+        lines.append(line)
+
+    return "\n".join(lines).strip()
+
 def main():
     print("🛠️ Initializing Self-Healing Code & Debugger Agent (The ReAct Sandbox Loop)...")
     agent = init_debugger_agent()
     print("✅ Debugger Agent ready! Interactive CLI mode active.")
     print("--------------------------------------------------")
-    print("Describe the coding task or function you want generated and self-healed.")
+    print("Describe the coding task or paste buggy code to generate and self-heal.")
     print("Type 'exit' or 'q' to quit.\n")
     
     while True:
         try:
-            user_input = input("User Task > ").strip()
+            user_input = get_multiline_input()
             if not user_input:
                 continue
             if user_input.lower() in ["exit", "q", "quit"]:
